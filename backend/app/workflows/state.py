@@ -31,6 +31,7 @@ class RetrievalState(TypedDict, total=False):
     unauthorized_units: list
     context: str
     answer: str
+    prompt_messages: list      # 待发送给 LLM 的消息（generate/fallback 产出）
     used_fallback: bool
     retry_count: int
     route: Literal["faq_cache", "retrieve", "rewrite", "fallback", "generate"]

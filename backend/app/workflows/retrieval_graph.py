@@ -15,9 +15,9 @@ from app.workflows.state import RetrievalState
 
 
 def route_after_faq_cache(state: RetrievalState) -> str:
-    """FAQ 命中直接生成，未命中走检索。"""
+    """FAQ 命中直接结束，未命中走检索。"""
     if state.get("answer"):
-        return "generate"
+        return END
     return "retrieve"
 
 
@@ -51,7 +51,7 @@ def build_retrieval_graph():
     graph.add_conditional_edges(
         "faq_cache",
         route_after_faq_cache,
-        {"retrieve": "retrieve", "generate": "generate"},
+        {"retrieve": "retrieve", END: END},
     )
     graph.add_edge("retrieve", "authorize")
     graph.add_conditional_edges(

@@ -76,7 +76,8 @@ async def rewrite_node(state: RetrievalState) -> RetrievalState:
         {"role": "user", "content": question},
     ]
     rewritten = ""
-    async for chunk in llm_client.stream_chat(messages):
+    result = llm_client.stream_chat(messages)
+    async for chunk in result:
         rewritten += chunk
     state["question"] = rewritten.strip() or question
     state["retry_count"] = state.get("retry_count", 0) + 1
@@ -84,13 +85,16 @@ async def rewrite_node(state: RetrievalState) -> RetrievalState:
 
 
 async def generate_node(state: RetrievalState) -> RetrievalState:
-    """生成回答：基于授权知识组装 Context 后 LLM 生成。"""
+    """生成准备：组装授权知识上下文，产出待发送给 LLM 的 Prompt。
+
+    实际的流式生成由 ai_service 完成（本节点只负责组装上下文与决策）。
+    """
     # 组装授权知识内容
     authorized_units = state.get("authorized_units", [])
     context = await _build_context(authorized_units)
     state["context"] = context
 
-    prompt_messages = [
+    state["prompt_messages"] = [
         {
             "role": "system",
             "content": "你是知识库问答助手。请仅根据提供的知识内容回答，不要编造知识内容以外的信息。",
@@ -100,17 +104,16 @@ async def generate_node(state: RetrievalState) -> RetrievalState:
             "content": f"知识内容：\n{context}\n\n用户问题：{state['question']}",
         },
     ]
-    answer = ""
-    async for chunk in llm_client.stream_chat(prompt_messages):
-        answer += chunk
-    state["answer"] = answer
     state["used_fallback"] = False
     return state
 
 
 async def fallback_node(state: RetrievalState) -> RetrievalState:
-    """模型兜底：检索不足时用 LLM 通用能力回答。"""
-    prompt_messages = [
+    """模型兜底准备：产出兜底 Prompt。
+
+    实际的流式生成由 ai_service 完成。
+    """
+    state["prompt_messages"] = [
         {
             "role": "system",
             "content": (
@@ -120,10 +123,6 @@ async def fallback_node(state: RetrievalState) -> RetrievalState:
         },
         {"role": "user", "content": state["question"]},
     ]
-    answer = ""
-    async for chunk in llm_client.stream_chat(prompt_messages):
-        answer += chunk
-    state["answer"] = answer
     state["used_fallback"] = True
     return state
 

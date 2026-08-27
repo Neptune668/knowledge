@@ -47,8 +47,9 @@ async def chat_stream(
                 "used_fallback": result["used_fallback"],
             },
         )
-        # 发送完整回答（M8 当前为一次性返回，后续可优化为 token 级流式）
-        yield _sse("delta", {"content": result["answer"]})
+        # 逐 token 流式发送回答增量
+        async for chunk in result["answer_stream"]:
+            yield _sse("delta", {"content": chunk})
         yield _sse("done", {})
 
     return StreamingResponse(gen(), media_type="text/event-stream")
