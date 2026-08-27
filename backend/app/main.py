@@ -11,7 +11,7 @@ from app.core.exceptions import (
     http_error_handler,
     validation_error_handler,
 )
-from app.api.v1 import ai, auth, knowledge, org
+from app.api.v1 import ai, auth, dashboard, knowledge, org, settlement
 
 app = FastAPI(
     title=settings.app_name,
@@ -30,6 +30,24 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(org.router, prefix="/api")
 app.include_router(knowledge.router, prefix="/api")
 app.include_router(ai.router, prefix="/api")
+app.include_router(dashboard.router, prefix="/api")
+app.include_router(settlement.router, prefix="/api")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """应用启动：启动定时任务调度器。"""
+    from app.jobs.settlement_jobs import start_scheduler
+
+    start_scheduler()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """应用关闭：停止调度器。"""
+    from app.jobs.settlement_jobs import shutdown_scheduler
+
+    shutdown_scheduler()
 
 
 @app.get("/health", tags=["系统"])
