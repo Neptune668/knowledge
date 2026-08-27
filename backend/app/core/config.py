@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,10 +35,11 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     embedding_dim: int = 1024
 
-    # Milvus
+    # Milvus（直接 url 访问，无需 token）
     milvus_url: str = ""
-    milvus_token: str = ""
-    milvus_collection: str = "knowledge_chunks"
+    milvus_collection: str = Field(
+        default="kb_chunks", validation_alias="CHUNKS_COLLECTION"
+    )
 
     # LLM API（OpenAI 兼容协议）
     llm_api_url: str = ""

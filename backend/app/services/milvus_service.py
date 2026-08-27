@@ -16,14 +16,11 @@ class MilvusService:
 
     @property
     def client(self) -> MilvusClient:
-        """惰性获取 Milvus 客户端（token 认证）。"""
+        """惰性获取 Milvus 客户端（直接 url 访问，无需认证）。"""
         if self._client is None:
             if not settings.milvus_url:
                 raise RuntimeError("MILVUS_URL 未配置")
-            kwargs = {"uri": settings.milvus_url}
-            if settings.milvus_token:
-                kwargs["token"] = settings.milvus_token
-            self._client = MilvusClient(**kwargs)
+            self._client = MilvusClient(uri=settings.milvus_url)
         return self._client
 
     def ensure_collection(self) -> None:
