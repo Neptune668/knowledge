@@ -36,7 +36,7 @@ async def chat_stream(
     result = await ai_service.chat(db, user, req.question, req.session_id)
 
     async def gen():
-        # 先发送元信息（召回/授权/未授权）
+        # 先发送元信息（召回/授权/未授权/是否兜底）
         yield _sse(
             "meta",
             {
@@ -44,11 +44,11 @@ async def chat_stream(
                 "recalled": result["recalled"],
                 "authorized": result["authorized"],
                 "unauthorized": result["unauthorized"],
+                "used_fallback": result["used_fallback"],
             },
         )
-        # 流式发送回答增量
-        async for chunk in result["answer_stream"]:
-            yield _sse("delta", {"content": chunk})
+        # 发送完整回答（M8 当前为一次性返回，后续可优化为 token 级流式）
+        yield _sse("delta", {"content": result["answer"]})
         yield _sse("done", {})
 
     return StreamingResponse(gen(), media_type="text/event-stream")
