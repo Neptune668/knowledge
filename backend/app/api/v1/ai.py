@@ -2,7 +2,7 @@
 
 import json
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models import User
 from app.services.ai_service import ai_service
+from app.services.session_service import session_service
 
 router = APIRouter(prefix="/ai", tags=["AI 问答"])
 
@@ -53,3 +54,24 @@ async def chat_stream(
         yield _sse("done", {})
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@router.get("/sessions")
+async def list_sessions(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """查询当前用户的会话列表。"""
+    return await session_service.list_sessions(db, user.id, page, page_size)
+
+
+@router.get("/sessions/{session_id}/messages")
+async def get_session_messages(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """查询某会话的历史消息。"""
+    return await session_service.get_messages(db, session_id, user.id)

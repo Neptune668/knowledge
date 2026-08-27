@@ -24,6 +24,7 @@ class RetrievalState(TypedDict, total=False):
     session_id: str
     user_id: int
     messages: Annotated[list, add_messages]
+    history: list           # 多轮对话历史 [{role, content}]
     recalled_units: list
     recalled_chunks: list
     top_score: float

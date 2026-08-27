@@ -42,12 +42,20 @@ class AiService:
         session_id = session_id or uuid.uuid4().hex
         t0 = time.time()
 
+        # 0. 获取历史对话上下文（多轮对话）
+        from app.services.session_service import session_service
+
+        history = await session_service.get_history_messages(
+            db, session_id, user.id
+        )
+
         # 1. 执行检索工作流（决策：知识问答 or 模型兜底 or FAQ 命中）
         init_state = {
             "question": question,
             "session_id": session_id,
             "user_id": user.id,
             "messages": [("user", question)],
+            "history": history,
             "retry_count": 0,
         }
         result = await retrieval_graph.ainvoke(init_state)
@@ -71,8 +79,9 @@ class AiService:
                 answer_parts.append(cached_answer)
                 yield cached_answer
             elif prompt_messages:
-                # 真实流式生成
-                stream_result = llm_client.stream_chat(prompt_messages)
+                # 真实流式生成（注入多轮对话历史）
+                final_messages = self._inject_history(prompt_messages, history)
+                stream_result = llm_client.stream_chat(final_messages)
                 async for chunk in stream_result:
                     answer_parts.append(chunk)
                     yield chunk
@@ -118,6 +127,27 @@ class AiService:
             f"\n\n⚠️ 提示：检索结果中部分知识单元（ID：{ids}）"
             "您暂无访问权限，相关内容未纳入本次回答。"
         )
+
+    @staticmethod
+    def _inject_history(prompt_messages: list[dict], history: list[dict]) -> list[dict]:
+        """将多轮对话历史注入到 LLM 消息中（system 在最前，历史在中间，当前提问在最后）。"""
+        if not history:
+            return prompt_messages
+
+        # prompt_messages 结构：[system, user(当前提问)]
+        system = prompt_messages[0] if prompt_messages else None
+        current_user = prompt_messages[-1] if prompt_messages else None
+
+        # 过滤历史中与当前提问重复的内容
+        history = [h for h in history if h.get("content") != current_user.get("content")]
+
+        result = []
+        if system:
+            result.append(system)
+        result.extend(history)
+        if current_user and current_user is not system:
+            result.append(current_user)
+        return result
 
 
 ai_service = AiService()
