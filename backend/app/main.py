@@ -11,7 +11,7 @@ from app.core.exceptions import (
     http_error_handler,
     validation_error_handler,
 )
-from app.api.v1 import auth
+from app.api.v1 import auth, knowledge, org
 
 app = FastAPI(
     title=settings.app_name,
@@ -27,6 +27,8 @@ app.add_exception_handler(RequestValidationError, validation_error_handler)
 
 # 注册路由
 app.include_router(auth.router, prefix="/api")
+app.include_router(org.router, prefix="/api")
+app.include_router(knowledge.router, prefix="/api")
 
 
 @app.get("/health", tags=["系统"])
