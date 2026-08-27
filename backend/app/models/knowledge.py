@@ -34,6 +34,24 @@ class KnowledgeUnit(Base):
     )
 
 
+class KnowledgeChunk(Base):
+    """知识单元切片表（M7：切片元数据 + Milvus 映射）。"""
+
+    __tablename__ = "knowledge_chunks"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    unit_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("knowledge_units.id", ondelete="CASCADE"), nullable=False
+    )
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    token_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    milvus_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class UnitPermission(Base):
     """知识单元数据权限表（四类实体）。"""
 

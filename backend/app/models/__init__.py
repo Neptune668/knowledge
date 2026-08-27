@@ -2,7 +2,7 @@
 
 from app.models.user import User, UserRole
 from app.models.org import Department, Role, RolePermission
-from app.models.knowledge import KnowledgeUnit, UnitPermission
+from app.models.knowledge import KnowledgeChunk, KnowledgeUnit, UnitPermission
 from app.models.qa import QaAccessLog
 from app.models.settlement import Faq, KnowledgeGap
 
@@ -12,6 +12,7 @@ __all__ = [
     "Department",
     "Role",
     "RolePermission",
+    "KnowledgeChunk",
     "KnowledgeUnit",
     "UnitPermission",
     "QaAccessLog",

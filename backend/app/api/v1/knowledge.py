@@ -1,6 +1,6 @@
 """知识单元接口。"""
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +16,7 @@ from app.schemas.knowledge import (
     KnowledgeUnitUpdate,
     UnitPermissionOut,
 )
+from app.services.import_service import import_service
 from app.services.knowledge_service import knowledge_service
 from app.services.permission_engine import permission_engine
 
@@ -111,17 +112,27 @@ async def config_permissions(
     return await knowledge_service.config_permissions(db, unit_id, req)
 
 
-# ===== 导入（占位，后续实现） =====
+# ===== 导入 =====
 
 
 @router.post("/import")
 async def import_knowledge(
+    files: list[UploadFile] = File(...),
     _: User = Depends(require_permission("knowledge:import")),
 ):
-    """单/多文件上传解析入库（占位接口，后续版本实现）。"""
-    from fastapi import HTTPException
+    """单/多文件上传解析入库。"""
+    file_list = [(f.filename, await f.read()) for f in files]
+    task_id = await import_service.import_files(file_list)
+    return {"code": 0, "message": "ok", "data": {"task_id": task_id}}
 
-    raise HTTPException(
-        status_code=501,
-        detail="知识导入功能尚未实现，将在后续版本（M7）提供",
-    )
+
+@router.get("/import/{task_id}")
+async def get_import_status(
+    task_id: str,
+    _: User = Depends(require_permission("knowledge:import")),
+):
+    """查询导入任务进度。"""
+    status = import_service.get_status(task_id)
+    if status is None:
+        return {"code": 0, "message": "ok", "data": None}
+    return {"code": 0, "message": "ok", "data": status}

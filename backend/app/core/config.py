@@ -28,10 +28,16 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 
-    # 向量化 API（暂用外部 API）
+    # 向量化 API（暂用外部 API，OpenAI 调用方式）
     embedding_api_url: str = ""
     embedding_api_key: str = ""
     embedding_model: str = "text-embedding-3-small"
+    embedding_dim: int = 1024
+
+    # Milvus
+    milvus_url: str = ""
+    milvus_token: str = ""
+    milvus_collection: str = "knowledge_chunks"
 
     # LLM API（OpenAI 兼容协议）
     llm_api_url: str = ""
