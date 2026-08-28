@@ -8,12 +8,11 @@ WORKDIR /app
 ENV TZ=Asia/Shanghai \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DEFAULT_TIMEOUT=100
 
-# 安装系统依赖（如需要）
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# 配置 pip 使用国内镜像源（清华源），加速依赖下载
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
 # 先复制依赖文件，利用 Docker 缓存层
 COPY requirements.txt .
