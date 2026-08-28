@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 120
     algorithm: str = "HS256"
 
+    # CORS（逗号分隔的允许来源，* 表示全部；同源部署可留空）
+    cors_origins: str = "*"
+
     # 数据库
     database_url: str = "postgresql+asyncpg://kami:kami@localhost:5432/kami"
 

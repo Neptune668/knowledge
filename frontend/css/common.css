@@ -1,0 +1,336 @@
+/* 知识库管理平台前端 —— 公共样式 */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  color: #333;
+  background: #f5f7fa;
+  line-height: 1.6;
+}
+
+/* ===== 布局 ===== */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* 顶部导航 */
+.navbar {
+  background: #fff;
+  border-bottom: 1px solid #e8e8e8;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  height: 56px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+.navbar .brand {
+  font-size: 18px;
+  font-weight: 600;
+  margin-right: 32px;
+  color: #1a73e8;
+}
+.navbar .menu {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+.navbar .menu a {
+  padding: 8px 16px;
+  text-decoration: none;
+  color: #555;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.navbar .menu a:hover {
+  background: #f0f4ff;
+  color: #1a73e8;
+}
+.navbar .menu a.active {
+  background: #1a73e8;
+  color: #fff;
+}
+.navbar .user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #666;
+}
+.navbar .user-info button {
+  cursor: pointer;
+}
+
+/* ===== 卡片 ===== */
+.card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+/* ===== 表格 ===== */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+table th,
+table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+}
+table th {
+  background: #fafafa;
+  font-weight: 600;
+  color: #555;
+}
+table tr:hover td {
+  background: #f9fbff;
+}
+
+/* ===== 按钮 ===== */
+.btn {
+  display: inline-block;
+  padding: 8px 16px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+.btn:hover {
+  border-color: #1a73e8;
+  color: #1a73e8;
+}
+.btn-primary {
+  background: #1a73e8;
+  border-color: #1a73e8;
+  color: #fff;
+}
+.btn-primary:hover {
+  background: #1666cc;
+  color: #fff;
+}
+.btn-danger {
+  color: #ff4d4f;
+  border-color: #ffccc7;
+}
+.btn-danger:hover {
+  border-color: #ff4d4f;
+  color: #ff4d4f;
+}
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== 表单 ===== */
+.form-group {
+  margin-bottom: 16px;
+}
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: #555;
+}
+input[type="text"],
+input[type="password"],
+input[type="number"],
+select,
+textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #1a73e8;
+}
+textarea {
+  min-height: 100px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+/* ===== 搜索栏 ===== */
+.search-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.search-bar input,
+.search-bar select {
+  width: auto;
+}
+
+/* ===== 分页 ===== */
+.pagination {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+.pagination span {
+  color: #666;
+}
+
+/* ===== 标签 ===== */
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  background: #f0f4ff;
+  color: #1a73e8;
+  margin-right: 4px;
+}
+.tag-green {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+.tag-red {
+  background: #ffebee;
+  color: #c62828;
+}
+.tag-gray {
+  background: #f5f5f5;
+  color: #666;
+}
+
+/* ===== Toast 提示 ===== */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.toast {
+  padding: 10px 16px;
+  border-radius: 4px;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  animation: slideIn 0.3s;
+  max-width: 320px;
+}
+.toast-info {
+  background: #1a73e8;
+}
+.toast-success {
+  background: #52c41a;
+}
+.toast-error {
+  background: #ff4d4f;
+}
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* ===== 弹窗（简易）===== */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.modal-mask.show {
+  display: flex;
+}
+.modal {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  width: 480px;
+  max-width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ===== 空状态 ===== */
+.empty {
+  text-align: center;
+  color: #999;
+  padding: 40px 0;
+}
+
+/* ===== 加载中 ===== */
+.loading {
+  text-align: center;
+  color: #999;
+  padding: 20px 0;
+}
+
+/* ===== 指标卡片 ===== */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.metric-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.metric-card .value {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1a73e8;
+  margin-top: 4px;
+}
+.metric-card .label {
+  color: #888;
+}

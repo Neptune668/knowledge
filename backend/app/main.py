@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
@@ -19,6 +20,22 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+# CORS 中间件（允许前端跨域访问）
+# cors_origins 支持 "*" 或逗号分隔的域名列表；留空则不启用 CORS
+if settings.cors_origins:
+    origins = (
+        ["*"]
+        if settings.cors_origins.strip() == "*"
+        else [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # 注册异常处理器
 app.add_exception_handler(BizError, biz_error_handler)
