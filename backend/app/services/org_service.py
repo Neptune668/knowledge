@@ -94,6 +94,11 @@ class OrgService:
         self, db: AsyncSession, req: DepartmentCreate
     ) -> DepartmentOut:
         """新增部门。"""
+        # 校验父部门存在
+        if req.parent_id is not None:
+            parent = await db.get(Department, req.parent_id)
+            if parent is None:
+                raise BizError(400, 40018, "父部门不存在")
         dept = Department(**req.model_dump())
         db.add(dept)
         await db.commit()
@@ -108,11 +113,50 @@ class OrgService:
         if dept is None:
             raise BizError(404, 40401, "部门不存在")
         data = req.model_dump(exclude_unset=True)
+
+        # 校验 parent_id 合法性，防止形成部门树循环
+        new_parent_id = data.get("parent_id")
+        if new_parent_id is not None:
+            if new_parent_id == dept_id:
+                raise BizError(400, 40017, "父部门不能指向自身")
+            # 校验父部门存在
+            parent = await db.get(Department, new_parent_id)
+            if parent is None:
+                raise BizError(400, 40018, "父部门不存在")
+            # 校验不能指向自己的子孙部门（否则形成循环）
+            descendant_ids = await self._get_descendant_ids(db, dept_id)
+            if new_parent_id in descendant_ids:
+                raise BizError(400, 40019, "父部门不能指向自身的下级部门")
+
         for key, value in data.items():
             setattr(dept, key, value)
         await db.commit()
         await db.refresh(dept)
         return DepartmentOut.model_validate(dept)
+
+    async def _get_descendant_ids(self, db: AsyncSession, dept_id: int) -> set[int]:
+        """获取某部门的所有子孙部门 ID 集合。"""
+        result = await db.execute(select(Department.id))
+        all_ids = {row[0] for row in result.all()}
+        # 通过 parent_id 构建子关系，BFS 遍历子孙
+        descendants: set[int] = set()
+        queue = [dept_id]
+        # 一次性取出所有部门的 parent_id 映射
+        depts = (await db.execute(select(Department.id, Department.parent_id))).all()
+        children_map: dict[int, list[int]] = {}
+        for did, pid in depts:
+            if pid is not None:
+                children_map.setdefault(pid, []).append(did)
+        # BFS
+        visited = {dept_id}
+        while queue:
+            current = queue.pop(0)
+            for child in children_map.get(current, []):
+                if child not in visited:
+                    visited.add(child)
+                    descendants.add(child)
+                    queue.append(child)
+        return descendants
 
     async def delete_department(self, db: AsyncSession, dept_id: int) -> None:
         """删除部门（需无子部门与成员）。"""

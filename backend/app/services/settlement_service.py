@@ -107,15 +107,20 @@ class SettlementService:
     # ===== 知识缺口 =====
 
     async def mine_gaps(self, db: AsyncSession) -> int:
-        """识别知识缺口：召回为空（无授权单元支撑）的提问聚合为缺口。
+        """识别知识缺口。
 
-        本阶段以「无任何召回记录」作为缺口判据，后续接入相似度阈值。
+        判据（满足任一）：
+        1. 召回为空（无任何召回记录）
+        2. 授权为空（召回但无权限/低置信度，等效于无可用知识支撑）
         返回本次生成的缺口数量。
         """
-        # 查询所有无召回（recalled 为空数组）的提问
+        # 查询无召回（recalled 为空数组）或无授权（authorized 为空数组）的提问
         result = await db.execute(
             select(QaAccessLog.question, func.count().label("cnt"))
-            .where(QaAccessLog.recalled_unit_ids_json == "[]")
+            .where(
+                (QaAccessLog.recalled_unit_ids_json == "[]")
+                | (QaAccessLog.authorized_unit_ids_json == "[]")
+            )
             .group_by(QaAccessLog.question)
             .order_by(func.count().desc())
         )

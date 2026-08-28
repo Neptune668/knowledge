@@ -1,6 +1,6 @@
 """数据看板服务：聚合问答日志，计算指标、排行榜与趋势。"""
 
-from sqlalchemy import distinct, func, select
+from sqlalchemy import Integer, String, distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import KnowledgeUnit, QaAccessLog
@@ -72,47 +72,74 @@ class DashboardService:
     ) -> list[UnitRankingItem]:
         """查询最常访问知识单元 TOP 榜。
 
-        基于日志中 authorized_unit_ids_json 展开统计。
+        优化：用 PostgreSQL jsonb_array_elements 在数据库侧展开并聚合，
+        避免全量拉到内存统计。
         """
-        # 拉取所有日志的授权单元 ID 列表，在内存中聚合（数据量大时可改 SQL）
-        result = await db.execute(
-            select(QaAccessLog.authorized_unit_ids_json)
+        # 在 SQL 层展开 authorized_unit_ids_json 数组并计数
+        # func.jsonb_array_elements 返回 table-valued function，用 .column_valued() 引用标量列
+        elem = func.jsonb_array_elements(QaAccessLog.authorized_unit_ids_json).column_valued(
+            "value"
         )
-        counter: dict[int, int] = {}
-        for (ids_json,) in result.all():
-            for uid in ids_json or []:
-                counter[uid] = counter.get(uid, 0) + 1
-
-        sorted_ids = sorted(counter.items(), key=lambda x: x[1], reverse=True)[:top]
-
-        # 查询标题
-        items: list[UnitRankingItem] = []
-        for unit_id, cnt in sorted_ids:
-            unit = await db.get(KnowledgeUnit, unit_id)
-            items.append(
-                UnitRankingItem(
-                    unit_id=unit_id,
-                    unit_title=unit.title if unit else None,
-                    hit_count=cnt,
-                )
+        unit_id_col = elem.cast(Integer)
+        result = await db.execute(
+            select(
+                unit_id_col.label("unit_id"),
+                func.count().label("cnt"),
             )
+            .where(QaAccessLog.authorized_unit_ids_json.isnot(None))
+            .group_by(unit_id_col)
+            .order_by(func.count().desc())
+            .limit(top)
+        )
+        ranked = [(int(row[0]), int(row[1])) for row in result.all()]
+
+        # 批量查询标题
+        unit_ids = [uid for uid, _ in ranked]
+        items: list[UnitRankingItem] = []
+        if unit_ids:
+            units = (
+                await db.execute(
+                    select(KnowledgeUnit.id, KnowledgeUnit.title).where(
+                        KnowledgeUnit.id.in_(unit_ids)
+                    )
+                )
+            ).all()
+            title_map = {u[0]: u[1] for u in units}
+            for unit_id, cnt in ranked:
+                items.append(
+                    UnitRankingItem(
+                        unit_id=unit_id,
+                        unit_title=title_map.get(unit_id),
+                        hit_count=cnt,
+                    )
+                )
         return items
 
     async def get_token_trend(
-        self, db: AsyncSession, days: int = 7
+        self, db: AsyncSession, days: int = 7, granularity: str = "day"
     ) -> list[TokenTrendItem]:
-        """查询 Token 消耗与响应时间趋势（按日）。"""
-        # PostgreSQL 按日期分组
-        date_expr = func.date(QaAccessLog.created_at)
+        """查询 Token 消耗与响应时间趋势（按日或按周）。"""
+        if granularity == "week":
+            # PostgreSQL 按周分组：ISO 年 + 周
+            year_expr = func.extract("isoyear", QaAccessLog.created_at)
+            week_expr = func.extract("week", QaAccessLog.created_at)
+            group_expr = func.concat(year_expr, "-W", func.lpad(week_expr.cast(String), 2, "0"))
+            order_expr = group_expr
+            limit = max(days // 7, 4)  # 周维度时限制周数
+        else:
+            group_expr = func.date(QaAccessLog.created_at)
+            order_expr = group_expr
+            limit = days
+
         result = await db.execute(
             select(
-                date_expr,
+                group_expr,
                 func.coalesce(func.sum(QaAccessLog.total_tokens), 0),
                 func.coalesce(func.avg(QaAccessLog.response_time_ms), 0),
             )
-            .group_by(date_expr)
-            .order_by(date_expr.desc())
-            .limit(days)
+            .group_by(group_expr)
+            .order_by(order_expr.desc())
+            .limit(limit)
         )
         items = [
             TokenTrendItem(

@@ -49,8 +49,9 @@ async def get_unit_rankings(
 @router.get("/stats/tokens", response_model=list[TokenTrendItem])
 async def get_token_trend(
     days: int = Query(7, ge=1, le=90),
+    granularity: str = Query("day", pattern="^(day|week)$"),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_permission("dashboard:view")),
 ):
-    """查询 Token 消耗与响应时间趋势。"""
-    return await dashboard_service.get_token_trend(db, days)
+    """查询 Token 消耗与响应时间趋势（按日/周）。"""
+    return await dashboard_service.get_token_trend(db, days, granularity)

@@ -15,6 +15,7 @@ class KnowledgeUnitOut(BaseModel):
     content: str
     summary: str | None = None
     category: str | None = None
+    tags: list[str] = []
     source_file_name: str | None = None
     file_type: str | None = None
     file_size: int | None = None
@@ -40,6 +41,7 @@ class KnowledgeUnitUpdate(BaseModel):
     content: str | None = None
     summary: str | None = None
     category: str | None = None
+    tags: list[str] | None = None
     status: str | None = Field(None, description="draft / published / archived")
 
 
@@ -48,9 +50,23 @@ class KnowledgeUnitCreate(BaseModel):
     content: str = Field(..., description="正文内容")
     summary: str | None = None
     category: str | None = None
+    tags: list[str] = []
     source_file_name: str | None = None
     file_type: str | None = None
     file_size: int | None = None
+
+
+class KnowledgeUnitVersionOut(BaseModel):
+    id: int
+    unit_id: int
+    version: int
+    title: str
+    content: str
+    summary: str | None = None
+    edited_by: int | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 class BatchDeleteRequest(BaseModel):

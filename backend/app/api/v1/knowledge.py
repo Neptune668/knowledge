@@ -14,6 +14,7 @@ from app.schemas.knowledge import (
     KnowledgeUnitListResponse,
     KnowledgeUnitOut,
     KnowledgeUnitUpdate,
+    KnowledgeUnitVersionOut,
     UnitPermissionOut,
 )
 from app.services.import_service import import_service
@@ -40,9 +41,24 @@ class CheckPermissionsResponse(BaseModel):
 async def check_permissions(
     req: CheckPermissionsRequest,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    """校验用户对指定知识单元集合的访问权限。"""
+    """校验用户对指定知识单元集合的访问权限。
+
+    安全约束：仅允许查询自身权限，或由拥有数据权限配置能力（knowledge:perm_config）
+    的管理员查询任意用户的权限，防止越权。
+    """
+    # 非管理员只能查询自己，否则拒绝
+    if req.user_id != current_user.id:
+        from app.services.org_service import org_service
+
+        if not await org_service.has_permission(
+            db, current_user.id, "knowledge:perm_config"
+        ):
+            from app.core.exceptions import BizError
+
+            raise BizError(403, 40302, "无权查询其他用户的访问权限")
+
     authorized, unauthorized = await permission_engine.check_units(
         db, req.user_id, req.unit_ids
     )
@@ -84,10 +100,20 @@ async def update_unit(
     unit_id: int,
     req: KnowledgeUnitUpdate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_permission("knowledge:update")),
+    user: User = Depends(require_permission("knowledge:update")),
 ):
     """更新知识单元内容。"""
-    return await knowledge_service.update_unit(db, unit_id, req)
+    return await knowledge_service.update_unit(db, unit_id, req, user.id)
+
+
+@router.get("/units/{unit_id}/versions", response_model=list[KnowledgeUnitVersionOut])
+async def list_versions(
+    unit_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("knowledge:view")),
+):
+    """查询知识单元版本历史。"""
+    return await knowledge_service.list_versions(db, unit_id)
 
 
 @router.delete("/units")

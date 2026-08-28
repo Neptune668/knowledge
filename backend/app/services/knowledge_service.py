@@ -6,7 +6,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BizError
-from app.models import KnowledgeUnit, UnitPermission
+from app.models import KnowledgeUnit, KnowledgeUnitVersion, UnitPermission
 from app.schemas.knowledge import (
     ConfigPermissionsRequest,
     KnowledgeUnitCreate,
@@ -14,6 +14,7 @@ from app.schemas.knowledge import (
     KnowledgeUnitListResponse,
     KnowledgeUnitOut,
     KnowledgeUnitUpdate,
+    KnowledgeUnitVersionOut,
     UnitPermissionOut,
 )
 
@@ -76,6 +77,7 @@ class KnowledgeService:
             content=req.content,
             summary=req.summary,
             category=req.category,
+            tags=req.tags,
             source_file_name=req.source_file_name,
             file_type=req.file_type,
             file_size=req.file_size,
@@ -88,15 +90,31 @@ class KnowledgeService:
         return KnowledgeUnitOut.model_validate(unit)
 
     async def update_unit(
-        self, db: AsyncSession, unit_id: int, req: KnowledgeUnitUpdate
+        self, db: AsyncSession, unit_id: int, req: KnowledgeUnitUpdate, editor_id: int | None = None
     ) -> KnowledgeUnitOut:
-        """更新知识单元。"""
+        """更新知识单元（变更内容时自动记录版本历史）。"""
         unit = await db.get(KnowledgeUnit, unit_id)
         if unit is None:
             raise BizError(404, 40401, "知识单元不存在")
         data = req.model_dump(exclude_unset=True)
         if "status" in data and data["status"] not in VALID_STATUS:
             raise BizError(400, 40006, "非法状态值")
+
+        # 内容类字段变更时，记录版本快照
+        content_changed = "content" in data or "title" in data or "summary" in data
+        if content_changed:
+            next_version = await self._next_version(db, unit_id)
+            db.add(
+                KnowledgeUnitVersion(
+                    unit_id=unit_id,
+                    version=next_version,
+                    title=unit.title,
+                    content=unit.content,
+                    summary=unit.summary,
+                    edited_by=editor_id,
+                )
+            )
+
         for key, value in data.items():
             setattr(unit, key, value)
         await db.commit()
@@ -157,6 +175,27 @@ class KnowledgeService:
         return [
             UnitPermissionOut.model_validate(p) for p in result.scalars().all()
         ]
+
+    async def list_versions(
+        self, db: AsyncSession, unit_id: int
+    ) -> list[KnowledgeUnitVersionOut]:
+        """查询知识单元的版本历史。"""
+        result = await db.execute(
+            select(KnowledgeUnitVersion)
+            .where(KnowledgeUnitVersion.unit_id == unit_id)
+            .order_by(KnowledgeUnitVersion.version.desc())
+        )
+        return [KnowledgeUnitVersionOut.model_validate(v) for v in result.scalars().all()]
+
+    async def _next_version(self, db: AsyncSession, unit_id: int) -> int:
+        """计算下一版本号。"""
+        result = await db.execute(
+            select(func.max(KnowledgeUnitVersion.version)).where(
+                KnowledgeUnitVersion.unit_id == unit_id
+            )
+        )
+        current = result.scalar_one()
+        return (current or 0) + 1
 
     @staticmethod
     def _gen_unit_code() -> str:

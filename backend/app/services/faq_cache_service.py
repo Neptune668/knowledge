@@ -1,4 +1,10 @@
-"""FAQ 缓存服务：审核通过的 FAQ 写入 Redis，提供精确/语义相似度匹配。"""
+"""FAQ 缓存服务：审核通过的 FAQ 写入 Redis，提供精确/语义相似度匹配。
+
+优化说明：
+- 精确匹配用 Redis 单 key 存储。
+- 语义匹配用 Redis hash 结构存储 FAQ 问题向量，一次 hgetall 取全量，
+  避免 scan_iter + 多次 get 的多次网络往返。
+"""
 
 import json
 
@@ -7,7 +13,7 @@ from redis.asyncio import Redis
 from app.core.config import settings
 
 FAQ_EXACT_PREFIX = "faq:exact:"
-FAQ_VECTOR_PREFIX = "faq:vec:"
+FAQ_VECTOR_HASH_KEY = "faq:vectors"  # hash：question -> vector(json)
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
@@ -44,12 +50,12 @@ class FaqCacheService:
         if r is None:
             return
         await r.set(FAQ_EXACT_PREFIX + question, answer)
-        # 预计算问题向量，加速语义匹配
+        # 预计算问题向量，存入 hash（语义匹配用）
         try:
             from app.services.embedding_client import embedding_client
 
             vec = await embedding_client.embed(question)
-            await r.set(FAQ_VECTOR_PREFIX + question, json.dumps(vec))
+            await r.hset(FAQ_VECTOR_HASH_KEY, question, json.dumps(vec))
         except Exception:
             pass
 
@@ -59,7 +65,7 @@ class FaqCacheService:
         if r is None:
             return
         await r.delete(FAQ_EXACT_PREFIX + question)
-        await r.delete(FAQ_VECTOR_PREFIX + question)
+        await r.hdel(FAQ_VECTOR_HASH_KEY, question)
 
     async def match(self, question: str) -> str | None:
         """匹配提问：先精确匹配，再语义相似度匹配。"""
@@ -76,14 +82,15 @@ class FaqCacheService:
         return await self._semantic_match(question, r)
 
     async def _semantic_match(self, question: str, r: Redis) -> str | None:
-        """语义匹配：对提问向量化，与已缓存 FAQ 问题向量比对。"""
+        """语义匹配：对提问向量化，与已缓存 FAQ 问题向量比对。
+
+        优化：用 hash 的 hgetall 一次取全量，避免 scan + 多次 get。
+        """
         from app.services.embedding_client import embedding_client
 
-        # 收集所有 FAQ 问题及其向量
-        keys = []
-        async for key in r.scan_iter(match=FAQ_VECTOR_PREFIX + "*"):
-            keys.append(key)
-        if not keys:
+        # 一次取全量 FAQ 问题向量
+        all_vecs = await r.hgetall(FAQ_VECTOR_HASH_KEY)
+        if not all_vecs:
             return None
 
         try:
@@ -93,10 +100,7 @@ class FaqCacheService:
 
         best_question: str | None = None
         best_score: float = 0.0
-        for key in keys:
-            raw = await r.get(key)
-            if not raw:
-                continue
+        for faq_question, raw in all_vecs.items():
             try:
                 vec = json.loads(raw)
             except (ValueError, TypeError):
@@ -104,7 +108,7 @@ class FaqCacheService:
             score = _cosine(query_vec, vec)
             if score > best_score:
                 best_score = score
-                best_question = key[len(FAQ_VECTOR_PREFIX):]
+                best_question = faq_question
 
         if best_question and best_score >= settings.faq_sim_threshold:
             return await r.get(FAQ_EXACT_PREFIX + best_question)
