@@ -1,11 +1,16 @@
 """数据库连接检查脚本（entrypoint 用于等待 PostgreSQL 就绪）。"""
 
 import asyncio
+import sys
+from pathlib import Path
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine
+# 确保 app 包可被导入（无论以何种方式运行本脚本）
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.core.config import settings
+from sqlalchemy import text  # noqa: E402
+from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
+
+from app.core.config import settings  # noqa: E402
 
 
 async def check() -> None:
