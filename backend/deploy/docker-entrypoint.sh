@@ -7,7 +7,7 @@ echo "=== 后端容器启动 ==="
 echo "等待 PostgreSQL 就绪..."
 RETRIES=30
 while [ $RETRIES -gt 0 ]; do
-    if python /app/check_db.py; then
+    if python /app/scripts/check_db.py; then
         echo "PostgreSQL 连接成功"
         break
     fi
