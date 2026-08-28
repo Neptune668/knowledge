@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>数据看板 - 知识库管理平台</title>
+  <link rel="stylesheet" href="css/common.css">
+  <style>
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .metric-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .metric-card .label { color: #888; font-size: 13px; }
+    .metric-card .value { font-size: 28px; font-weight: 600; margin-top: 6px; }
+    .metric-card .value.blue { color: #1a73e8; }
+    .metric-card .value.green { color: #2e7d32; }
+    .metric-card .value.orange { color: #ff9800; }
+    .metric-card .value.purple { color: #764ba2; }
+    .metric-card .value.red { color: #e53935; }
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .chart-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .chart-card .title { font-weight: 600; margin-bottom: 12px; }
+    .chart-box { width: 100%; height: 280px; }
+    .ranking-list { list-style: none; }
+    .ranking-list li {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .ranking-list li .rank {
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      line-height: 24px;
+      text-align: center;
+      border-radius: 50%;
+      background: #f0f4ff;
+      color: #1a73e8;
+      font-size: 12px;
+      margin-right: 8px;
+    }
+    .ranking-list li .rank.top { background: #ff9800; color: #fff; }
+    .ranking-list li .q { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ranking-list li .count { color: #999; }
+    @media (max-width: 768px) {
+      .charts-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <div class="brand">知识库管理平台</div>
+    <div class="menu">
+      <a href="index.html">首页</a>
+      <a href="chat.html">AI 问答</a>
+      <a href="dashboard.html" class="active">数据看板</a>
+    </div>
+    <div class="user-info">
+      <span id="userName"></span>
+      <button class="btn btn-sm" onclick="logout()">退出登录</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- 指标卡片 -->
+    <div class="metrics-grid" id="metricsGrid"></div>
+
+    <!-- 排行榜 -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="title">常见问题 TOP 榜</div>
+        <ul class="ranking-list" id="questionRanking"></ul>
+      </div>
+      <div class="chart-card">
+        <div class="title">知识单元访问 TOP 榜</div>
+        <ul class="ranking-list" id="unitRanking"></ul>
+      </div>
+    </div>
+
+    <!-- 趋势图 -->
+    <div class="chart-card">
+      <div class="title" style="display:flex;justify-content:space-between">
+        <span>Token 消耗与响应时间趋势</span>
+        <span>
+          <button class="btn btn-sm" id="btnDay" onclick="switchGranularity('day')">按日</button>
+          <button class="btn btn-sm" id="btnWeek" onclick="switchGranularity('week')">按周</button>
+        </span>
+      </div>
+      <div class="chart-box" id="trendChart"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <script src="js/common.js"></script>
+  <script>
+    if (!requireLogin()) {}
+    const userInfo = getUserInfo();
+    if (userInfo) document.getElementById('userName').textContent = userInfo.display_name || userInfo.username;
+
+    let granularity = 'day';
+    let trendChart = null;
+
+    // ===== 指标卡片 =====
+    async function loadMetrics() {
+      const data = await http.get('/dashboard/metrics');
+      const cards = [
+        { label: 'Agent 访问次数', value: data.total_visits, color: 'blue' },
+        { label: '独立访问人数（UV）', value: data.unique_users, color: 'green' },
+        { label: '知识单元总数', value: data.total_units, color: 'purple' },
+        { label: '总 Token 消耗', value: data.total_tokens, color: 'orange' },
+        { label: '平均响应时间', value: data.avg_response_time_ms + ' ms', color: 'red' },
+      ];
+      document.getElementById('metricsGrid').innerHTML = cards.map(c => `
+        <div class="metric-card">
+          <div class="label">${c.label}</div>
+          <div class="value ${c.color}">${c.value}</div>
+        </div>`).join('');
+    }
+
+    // ===== 排行榜 =====
+    async function loadRankings() {
+      const questions = await http.get('/dashboard/rankings/questions?top=10');
+      document.getElementById('questionRanking').innerHTML = questions.map((q, i) => `
+        <li>
+          <span><span class="rank ${i < 3 ? 'top' : ''}">${i + 1}</span><span class="q">${escapeHtml(q.question)}</span></span>
+          <span class="count">${q.ask_count} 次</span>
+        </li>`).join('') || '<div class="empty">暂无数据</div>';
+
+      const units = await http.get('/dashboard/rankings/units?top=10');
+      document.getElementById('unitRanking').innerHTML = units.map((u, i) => `
+        <li>
+          <span><span class="rank ${i < 3 ? 'top' : ''}">${i + 1}</span><span class="q">${escapeHtml(u.unit_title || '单元 ' + u.unit_id)}</span></span>
+          <span class="count">${u.hit_count} 次</span>
+        </li>`).join('') || '<div class="empty">暂无数据</div>';
+    }
+
+    // ===== 趋势图 =====
+    async function loadTrend() {
+      const days = granularity === 'week' ? 28 : 7;
+      const data = await http.get(`/dashboard/stats/tokens?days=${days}&granularity=${granularity}`);
+
+      const dates = data.map(d => d.date);
+      const tokens = data.map(d => d.total_tokens);
+      const times = data.map(d => d.avg_response_time_ms);
+
+      if (!trendChart) {
+        trendChart = echarts.init(document.getElementById('trendChart'));
+      }
+      trendChart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['Token 消耗', '平均响应时间(ms)'] },
+        grid: { left: 60, right: 60, top: 40, bottom: 30 },
+        xAxis: { type: 'category', data: dates },
+        yAxis: [
+          { type: 'value', name: 'Token' },
+          { type: 'value', name: 'ms' },
+        ],
+        series: [
+          { name: 'Token 消耗', type: 'line', data: tokens, smooth: true, itemStyle: { color: '#1a73e8' } },
+          { name: '平均响应时间(ms)', type: 'line', yAxisIndex: 1, data: times, smooth: true, itemStyle: { color: '#ff9800' } },
+        ],
+      });
+
+      // 高亮当前粒度按钮
+      document.getElementById('btnDay').className = 'btn btn-sm' + (granularity === 'day' ? ' btn-primary' : '');
+      document.getElementById('btnWeek').className = 'btn btn-sm' + (granularity === 'week' ? ' btn-primary' : '');
+    }
+
+    function switchGranularity(g) {
+      granularity = g;
+      loadTrend();
+    }
+
+    // ===== 初始化 =====
+    loadMetrics();
+    loadRankings();
+    loadTrend();
+
+    // 窗口大小变化时重绘图表
+    window.addEventListener('resize', () => trendChart && trendChart.resize());
+  </script>
+</body>
+</html>

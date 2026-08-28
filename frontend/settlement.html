@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知识沉淀 - 知识库管理平台</title>
+  <link rel="stylesheet" href="css/common.css">
+  <style>
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid #e8e8e8; margin-bottom: 20px; }
+    .tab { padding: 10px 20px; cursor: pointer; color: #555; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tab.active { color: #1a73e8; border-bottom-color: #1a73e8; font-weight: 600; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .status-tag { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 12px; }
+    .st-pending { background: #fff3e0; color: #e65100; }
+    .st-published { background: #e8f5e9; color: #2e7d32; }
+    .st-rejected { background: #ffebee; color: #c62828; }
+    .st-unresolved { background: #fff3e0; color: #e65100; }
+    .st-resolved { background: #e8f5e9; color: #2e7d32; }
+    .st-ignored { background: #f5f5f5; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <div class="brand">知识库管理平台</div>
+    <div class="menu">
+      <a href="index.html">首页</a>
+      <a href="chat.html">AI 问答</a>
+      <a href="settlement.html" class="active">知识沉淀</a>
+    </div>
+    <div class="user-info">
+      <span id="userName"></span>
+      <button class="btn btn-sm" onclick="logout()">退出登录</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="tabs">
+      <div class="tab active" data-tab="faq" onclick="switchTab('faq')">FAQ 审核</div>
+      <div class="tab" data-tab="gap" onclick="switchTab('gap')">知识缺口</div>
+    </div>
+
+    <!-- FAQ 审核 -->
+    <div class="tab-panel active" id="panel-faq">
+      <div class="card">
+        <div class="card-title">待审核 FAQ 推荐</div>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>问题</th><th>推荐频次</th><th>来源</th><th>状态</th><th>操作</th></tr>
+          </thead>
+          <tbody id="faqPendingTable"></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-title">已发布 FAQ 库</div>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>问题</th><th>答案</th><th>命中次数</th><th>操作</th></tr>
+          </thead>
+          <tbody id="faqPublishedTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 知识缺口 -->
+    <div class="tab-panel" id="panel-gap">
+      <div class="card">
+        <div class="card-title">知识缺口列表</div>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>问题模式</th><th>提问频次</th><th>最近提问</th><th>状态</th><th>操作</th></tr>
+          </thead>
+          <tbody id="gapTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- FAQ 审核弹窗 -->
+  <div class="modal-mask" id="faqReviewModal">
+    <div class="modal">
+      <div class="modal-title">审核 FAQ</div>
+      <div class="form-group"><label>问题</label><div id="reviewQuestion" style="padding:8px;background:#f5f5f5;border-radius:4px"></div></div>
+      <div class="form-group"><label>标准答案（审核通过时填写）</label><textarea id="reviewAnswer" style="min-height:120px"></textarea></div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('faqReviewModal')">取消</button>
+        <button class="btn btn-danger" onclick="reviewFaq('reject')">驳回</button>
+        <button class="btn btn-primary" onclick="reviewFaq('approve')">审核通过</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 缺口处理弹窗 -->
+  <div class="modal-mask" id="gapResolveModal">
+    <div class="modal">
+      <div class="modal-title">处理知识缺口</div>
+      <div class="form-group"><label>问题模式</label><div id="gapQuestion" style="padding:8px;background:#f5f5f5;border-radius:4px"></div></div>
+      <div class="form-group">
+        <label><input type="radio" name="resolveType" value="new" checked onchange="toggleResolveType()"> 一键创建新知识单元</label>
+        <label><input type="radio" name="resolveType" value="link" onchange="toggleResolveType()"> 关联已有知识单元</label>
+      </div>
+      <div id="newUnitFields">
+        <div class="form-group"><label>标题</label><input type="text" id="newUnitTitle"></div>
+        <div class="form-group"><label>正文内容</label><textarea id="newUnitContent" style="min-height:120px"></textarea></div>
+        <div class="form-group"><label>分类</label><input type="text" id="newUnitCategory"></div>
+      </div>
+      <div class="form-group" id="linkUnitField" style="display:none"><label>知识单元 ID</label><input type="number" id="linkUnitId"></div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('gapResolveModal')">取消</button>
+        <button class="btn btn-primary" onclick="resolveGap()">确认处理</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script>
+    if (!requireLogin()) {}
+    const userInfo = getUserInfo();
+    if (userInfo) document.getElementById('userName').textContent = userInfo.display_name || userInfo.username;
+
+    let reviewingFaqId = null;
+    let resolvingGapId = null;
+
+    const FAQ_STATUS = { pending_review: '待审核', published: '已发布', rejected: '已驳回' };
+    const GAP_STATUS = { unresolved: '未处理', resolved: '已处理', ignored: '已忽略' };
+    const SOURCE_TYPE = { manual: '人工', auto_mined: '自动挖掘' };
+
+    // ===== Tab 切换 =====
+    function switchTab(name) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+      if (name === 'faq') loadFaqs();
+      if (name === 'gap') loadGaps();
+    }
+
+    function openModal(id) { document.getElementById(id).classList.add('show'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+    // ===== FAQ =====
+    async function loadFaqs() {
+      // 待审核
+      const pending = await http.get('/settlement/faqs/recommendations');
+      document.getElementById('faqPendingTable').innerHTML = pending.map(f => `
+        <tr>
+          <td>${f.id}</td>
+          <td>${escapeHtml(f.question)}</td>
+          <td>${f.hit_count}</td>
+          <td>${SOURCE_TYPE[f.source_type] || f.source_type}</td>
+          <td><span class="status-tag st-pending">待审核</span></td>
+          <td><button class="btn btn-sm btn-primary" data-perm="faq:review" onclick="openFaqReview(${f.id})">审核</button></td>
+        </tr>`).join('') || '<tr><td colspan="6" class="empty">暂无待审核 FAQ</td></tr>';
+
+      // 已发布
+      const published = await http.get('/settlement/faqs/published');
+      document.getElementById('faqPublishedTable').innerHTML = published.map(f => `
+        <tr>
+          <td>${f.id}</td>
+          <td>${escapeHtml(f.question)}</td>
+          <td>${escapeHtml(f.answer || '-')}</td>
+          <td>${f.hit_count}</td>
+          <td>-</td>
+        </tr>`).join('') || '<tr><td colspan="5" class="empty">暂无已发布 FAQ</td></tr>';
+
+      applyPermission();
+    }
+
+    function openFaqReview(id) {
+      reviewingFaqId = id;
+      // 简化：重新拉取列表找到该 FAQ 的问题
+      document.getElementById('reviewQuestion').textContent = '加载中...';
+      document.getElementById('reviewAnswer').value = '';
+      http.get('/settlement/faqs/recommendations').then(list => {
+        const f = list.find(x => x.id === id);
+        document.getElementById('reviewQuestion').textContent = f ? f.question : '';
+      });
+      openModal('faqReviewModal');
+    }
+
+    async function reviewFaq(action) {
+      const body = { action };
+      if (action === 'approve') {
+        body.edited_answer = document.getElementById('reviewAnswer').value.trim();
+      }
+      try {
+        await http.post(`/settlement/faqs/${reviewingFaqId}/review`, body);
+        closeModal('faqReviewModal');
+        toast(action === 'approve' ? '已通过并发布' : '已驳回', 'success');
+        loadFaqs();
+      } catch (e) {
+        // 错误已由 request 统一 toast 提示
+      }
+    }
+
+    // ===== 知识缺口 =====
+    async function loadGaps() {
+      const gaps = await http.get('/settlement/knowledge-gaps');
+      document.getElementById('gapTable').innerHTML = gaps.map(g => `
+        <tr>
+          <td>${g.id}</td>
+          <td>${escapeHtml(g.question_pattern)}</td>
+          <td>${g.ask_count}</td>
+          <td>${formatTime(g.last_asked_at)}</td>
+          <td><span class="status-tag st-${g.status}">${GAP_STATUS[g.status] || g.status}</span></td>
+          <td>
+            ${g.status === 'unresolved' ? `<button class="btn btn-sm btn-primary" data-perm="gap:resolve" onclick="openGapResolve(${g.id})">处理</button>` : ''}
+            ${g.status === 'unresolved' ? `<button class="btn btn-sm" data-perm="gap:resolve" onclick="updateGapStatus(${g.id}, 'ignored')">忽略</button>` : ''}
+          </td>
+        </tr>`).join('') || '<tr><td colspan="6" class="empty">暂无知识缺口</td></tr>';
+      applyPermission();
+    }
+
+    function openGapResolve(id) {
+      resolvingGapId = id;
+      document.getElementById('newUnitTitle').value = '';
+      document.getElementById('newUnitContent').value = '';
+      document.getElementById('newUnitCategory').value = '';
+      document.getElementById('linkUnitId').value = '';
+      document.getElementById('gapQuestion').textContent = '加载中...';
+      http.get('/settlement/knowledge-gaps').then(list => {
+        const g = list.find(x => x.id === id);
+        document.getElementById('gapQuestion').textContent = g ? g.question_pattern : '';
+      });
+      toggleResolveType();
+      openModal('gapResolveModal');
+    }
+
+    function toggleResolveType() {
+      const type = document.querySelector('input[name="resolveType"]:checked').value;
+      document.getElementById('newUnitFields').style.display = type === 'new' ? 'block' : 'none';
+      document.getElementById('linkUnitField').style.display = type === 'link' ? 'block' : 'none';
+    }
+
+    async function resolveGap() {
+      const type = document.querySelector('input[name="resolveType"]:checked').value;
+      let body;
+      if (type === 'new') {
+        body = {
+          create_new: true,
+          title: document.getElementById('newUnitTitle').value.trim(),
+          content: document.getElementById('newUnitContent').value.trim(),
+          category: document.getElementById('newUnitCategory').value.trim(),
+        };
+        if (!body.title || !body.content) { toast('请填写标题和正文', 'error'); return; }
+      } else {
+        body = { create_new: false, resolved_unit_id: Number(document.getElementById('linkUnitId').value) };
+        if (!body.resolved_unit_id) { toast('请输入知识单元 ID', 'error'); return; }
+      }
+      await http.post(`/settlement/knowledge-gaps/${resolvingGapId}/resolve`, body);
+      closeModal('gapResolveModal');
+      toast('缺口已处理', 'success');
+      loadGaps();
+    }
+
+    async function updateGapStatus(id, status) {
+      await http.put(`/settlement/knowledge-gaps/${id}/status`, { status });
+      toast('状态已更新', 'success');
+      loadGaps();
+    }
+
+    // ===== 初始化 =====
+    loadFaqs();
+  </script>
+</body>
+</html>

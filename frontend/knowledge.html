@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知识单元 - 知识库管理平台</title>
+  <link rel="stylesheet" href="css/common.css">
+  <style>
+    .status-tag { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 12px; }
+    .status-draft { background: #f5f5f5; color: #666; }
+    .status-published { background: #e8f5e9; color: #2e7d32; }
+    .status-archived { background: #ffebee; color: #c62828; }
+    /* 权限勾选 */
+    .perm-type-group { margin-bottom: 12px; }
+    .perm-type-group .title { font-weight: 600; margin-bottom: 6px; }
+    .perm-type-group label { display: inline-block; margin-right: 12px; font-weight: normal; }
+    /* 导入进度 */
+    .import-progress { margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <div class="brand">知识库管理平台</div>
+    <div class="menu">
+      <a href="index.html">首页</a>
+      <a href="chat.html">AI 问答</a>
+      <a href="knowledge.html" class="active">知识单元</a>
+    </div>
+    <div class="user-info">
+      <span id="userName"></span>
+      <button class="btn btn-sm" onclick="logout()">退出登录</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <!-- 搜索栏 -->
+      <div class="search-bar">
+        <input type="text" id="title" placeholder="按标题搜索">
+        <input type="text" id="category" placeholder="分类">
+        <select id="status">
+          <option value="">全部状态</option>
+          <option value="draft">草稿</option>
+          <option value="published">已发布</option>
+          <option value="archived">已归档</option>
+        </select>
+        <button class="btn btn-primary" onclick="loadUnits(1)">查询</button>
+        <button class="btn" data-perm="knowledge:import" onclick="openImportModal()">导入文档</button>
+      </div>
+
+      <!-- 列表 -->
+      <table>
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="checkAll" onclick="toggleCheckAll()"></th>
+            <th>编号</th><th>标题</th><th>分类</th><th>标签</th><th>格式</th><th>状态</th><th>更新时间</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="unitTable"></tbody>
+      </table>
+
+      <!-- 批量删除 -->
+      <div style="margin-top:12px">
+        <button class="btn btn-danger btn-sm" data-perm="knowledge:delete" onclick="batchDelete()">批量删除</button>
+      </div>
+
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </div>
+
+  <!-- 编辑弹窗 -->
+  <div class="modal-mask" id="editModal">
+    <div class="modal" style="width:640px">
+      <div class="modal-title">编辑知识单元</div>
+      <div class="form-group"><label>标题</label><input type="text" id="editTitle"></div>
+      <div class="form-group"><label>分类</label><input type="text" id="editCategory"></div>
+      <div class="form-group"><label>标签（逗号分隔）</label><input type="text" id="editTags"></div>
+      <div class="form-group"><label>状态</label>
+        <select id="editStatus">
+          <option value="draft">草稿</option>
+          <option value="published">已发布</option>
+          <option value="archived">已归档</option>
+        </select>
+      </div>
+      <div class="form-group"><label>正文内容</label><textarea id="editContent" style="min-height:200px"></textarea></div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('editModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveEdit()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 权限配置弹窗 -->
+  <div class="modal-mask" id="permModal">
+    <div class="modal">
+      <div class="modal-title">配置数据权限 - <span id="permUnitTitle"></span></div>
+      <div class="perm-type-group">
+        <div class="title">全局公开</div>
+        <label><input type="checkbox" id="permGlobal"> 所有人可见</label>
+      </div>
+      <div class="perm-type-group">
+        <div class="title">指定部门（多选）</div>
+        <div id="permDeptList"></div>
+      </div>
+      <div class="perm-type-group">
+        <div class="title">指定角色（多选）</div>
+        <div id="permRoleList"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('permModal')">取消</button>
+        <button class="btn btn-primary" onclick="savePerm()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 导入弹窗 -->
+  <div class="modal-mask" id="importModal">
+    <div class="modal">
+      <div class="modal-title">导入知识文档</div>
+      <div class="form-group">
+        <label>选择文件（支持 TXT、Markdown，可多选）</label>
+        <input type="file" id="importFiles" multiple accept=".txt,.md,.markdown">
+      </div>
+      <div class="import-progress" id="importProgress"></div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('importModal')">关闭</button>
+        <button class="btn btn-primary" id="importBtn" onclick="doImport()">开始导入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 版本历史弹窗 -->
+  <div class="modal-mask" id="versionModal">
+    <div class="modal" style="width:640px">
+      <div class="modal-title">版本历史</div>
+      <table>
+        <thead><tr><th>版本</th><th>标题</th><th>时间</th></tr></thead>
+        <tbody id="versionTable"></tbody>
+      </table>
+      <div class="modal-footer"><button class="btn" onclick="closeModal('versionModal')">关闭</button></div>
+    </div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script>
+    if (!requireLogin()) {}
+    const userInfo = getUserInfo();
+    if (userInfo) document.getElementById('userName').textContent = userInfo.display_name || userInfo.username;
+
+    let currentPage = 1;
+    let editingUnitId = null;
+    let permUnitId = null;
+    let selectedUnitIds = new Set();
+    let allDepts = [];
+    let allRoles = [];
+
+    const STATUS_MAP = { draft: '草稿', published: '已发布', archived: '已归档' };
+
+    // ===== 列表 =====
+    async function loadUnits(page) {
+      currentPage = page;
+      const params = new URLSearchParams({ page, page_size: 20 });
+      const title = document.getElementById('title').value.trim();
+      const category = document.getElementById('category').value.trim();
+      const status = document.getElementById('status').value;
+      if (title) params.append('title', title);
+      if (category) params.append('category', category);
+      if (status) params.append('status', status);
+
+      const data = await http.get('/knowledge/units?' + params.toString());
+      const tbody = document.getElementById('unitTable');
+      tbody.innerHTML = data.items.map(u => `
+        <tr>
+          <td><input type="checkbox" class="unit-check" value="${u.id}" onchange="toggleSelect(${u.id}, this.checked)"></td>
+          <td>${escapeHtml(u.unit_code)}</td>
+          <td>${escapeHtml(u.title)}</td>
+          <td>${escapeHtml(u.category || '-')}</td>
+          <td>${(u.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</td>
+          <td>${escapeHtml(u.file_type || '-')}</td>
+          <td><span class="status-tag status-${u.status}">${STATUS_MAP[u.status] || u.status}</span></td>
+          <td>${formatTime(u.updated_at)}</td>
+          <td>
+            <button class="btn btn-sm" data-perm="knowledge:view" onclick="viewUnit(${u.id})">查看</button>
+            <button class="btn btn-sm" data-perm="knowledge:update" onclick="openEdit(${u.id})">编辑</button>
+            <button class="btn btn-sm btn-primary" data-perm="knowledge:perm_config" onclick="openPerm(${u.id})">权限</button>
+            <button class="btn btn-sm" data-perm="knowledge:view" onclick="openVersions(${u.id})">版本</button>
+          </td>
+        </tr>`).join('');
+
+      renderPagination(data.total, page, 20);
+      applyPermission();
+    }
+
+    function toggleSelect(id, checked) {
+      if (checked) selectedUnitIds.add(id); else selectedUnitIds.delete(id);
+    }
+    function toggleCheckAll() {
+      const checked = document.getElementById('checkAll').checked;
+      document.querySelectorAll('.unit-check').forEach(c => {
+        c.checked = checked;
+        toggleSelect(Number(c.value), checked);
+      });
+    }
+
+    // ===== 查看详情 =====
+    async function viewUnit(id) {
+      const data = await http.get(`/knowledge/units/${id}`);
+      // 简化：直接弹窗显示内容摘要
+      alert(`标题：${data.title}\n分类：${data.category || '-'}\n状态：${STATUS_MAP[data.status] || data.status}\n\n摘要：${data.summary || '无'}`);
+    }
+
+    // ===== 编辑 =====
+    async function openEdit(id) {
+      editingUnitId = id;
+      const data = await http.get(`/knowledge/units/${id}`);
+      document.getElementById('editTitle').value = data.title;
+      document.getElementById('editCategory').value = data.category || '';
+      document.getElementById('editTags').value = (data.tags || []).join(',');
+      document.getElementById('editStatus').value = data.status;
+      document.getElementById('editContent').value = data.content;
+      openModal('editModal');
+    }
+    async function saveEdit() {
+      const tags = document.getElementById('editTags').value.split(',').map(t => t.trim()).filter(Boolean);
+      await http.put(`/knowledge/units/${editingUnitId}`, {
+        title: document.getElementById('editTitle').value.trim(),
+        category: document.getElementById('editCategory').value.trim(),
+        tags,
+        status: document.getElementById('editStatus').value,
+        content: document.getElementById('editContent').value,
+      });
+      closeModal('editModal');
+      toast('保存成功', 'success');
+      loadUnits(currentPage);
+    }
+
+    // ===== 批量删除 =====
+    async function batchDelete() {
+      if (selectedUnitIds.size === 0) { toast('请先勾选要删除的单元', 'error'); return; }
+      if (!confirm(`确认删除 ${selectedUnitIds.size} 个知识单元？`)) return;
+      await http.delete('/knowledge/units', { unit_ids: Array.from(selectedUnitIds) });
+      selectedUnitIds.clear();
+      toast('删除成功', 'success');
+      loadUnits(currentPage);
+    }
+
+    // ===== 权限配置 =====
+    async function openPerm(id) {
+      permUnitId = id;
+      const data = await http.get(`/knowledge/units/${id}`);
+      document.getElementById('permUnitTitle').textContent = data.title;
+      // 加载部门和角色
+      allDepts = flattenDepts(await http.get('/org/departments'));
+      allRoles = await http.get('/org/roles');
+      document.getElementById('permDeptList').innerHTML = allDepts.map(d => `<label><input type="checkbox" class="perm-dept" value="${d.id}"> ${escapeHtml(d.name)}</label>`).join('<br>');
+      document.getElementById('permRoleList').innerHTML = allRoles.map(r => `<label><input type="checkbox" class="perm-role" value="${r.id}"> ${escapeHtml(r.role_name)}</label>`).join('<br>');
+      // 回显已有权限
+      document.getElementById('permGlobal').checked = false;
+      document.querySelectorAll('.perm-dept').forEach(c => c.checked = false);
+      document.querySelectorAll('.perm-role').forEach(c => c.checked = false);
+      (data.permissions || []).forEach(p => {
+        if (p.target_type === 'global') document.getElementById('permGlobal').checked = true;
+        if (p.target_type === 'department') document.querySelector(`.perm-dept[value="${p.target_id}"]`)?.setAttribute('checked', 'checked');
+        if (p.target_type === 'role') document.querySelector(`.perm-role[value="${p.target_id}"]`)?.setAttribute('checked', 'checked');
+      });
+      // 重新同步 checked 状态
+      document.querySelectorAll('.perm-dept, .perm-role').forEach(c => c.checked = c.hasAttribute('checked'));
+      openModal('permModal');
+    }
+    function flattenDepts(nodes, result = []) {
+      nodes.forEach(n => { result.push(n); if (n.children) flattenDepts(n.children, result); });
+      return result;
+    }
+    async function savePerm() {
+      const permissions = [];
+      if (document.getElementById('permGlobal').checked) {
+        permissions.push({ target_type: 'global', target_id: null });
+      }
+      document.querySelectorAll('.perm-dept:checked').forEach(c => permissions.push({ target_type: 'department', target_id: Number(c.value) }));
+      document.querySelectorAll('.perm-role:checked').forEach(c => permissions.push({ target_type: 'role', target_id: Number(c.value) }));
+      await http.post(`/knowledge/units/${permUnitId}/permissions`, { permissions });
+      closeModal('permModal');
+      toast('权限已保存', 'success');
+    }
+
+    // ===== 版本历史 =====
+    async function openVersions(id) {
+      const data = await http.get(`/knowledge/units/${id}/versions`);
+      document.getElementById('versionTable').innerHTML = data.map(v => `
+        <tr><td>v${v.version}</td><td>${escapeHtml(v.title)}</td><td>${formatTime(v.created_at)}</td></tr>
+      `).join('') || '<tr><td colspan="3" class="empty">暂无版本记录</td></tr>';
+      openModal('versionModal');
+    }
+
+    // ===== 导入 =====
+    function openImportModal() {
+      document.getElementById('importProgress').innerHTML = '';
+      openModal('importModal');
+    }
+    async function doImport() {
+      const files = document.getElementById('importFiles').files;
+      if (files.length === 0) { toast('请选择文件', 'error'); return; }
+
+      const formData = new FormData();
+      Array.from(files).forEach(f => formData.append('files', f));
+
+      const btn = document.getElementById('importBtn');
+      btn.disabled = true;
+      btn.textContent = '上传中...';
+
+      const resp = await fetch(BASE_URL + '/knowledge/import', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${getToken()}` },
+        body: formData,
+      });
+      const data = await resp.json();
+      const taskId = data.data?.task_id;
+      if (!taskId) { toast('导入失败', 'error'); btn.disabled = false; btn.textContent = '开始导入'; return; }
+
+      // 轮询进度
+      toast('已提交导入任务', 'success');
+      pollProgress(taskId);
+    }
+    async function pollProgress(taskId) {
+      const el = document.getElementById('importProgress');
+      const timer = setInterval(async () => {
+        try {
+          const data = await http.get(`/knowledge/import/${taskId}`);
+          const st = data.data;
+          if (!st) return;
+          if (st.status === 'completed') {
+            clearInterval(timer);
+            el.innerHTML = `<div class="tag tag-green">导入完成，共 ${st.unit_ids?.length || 0} 个单元</div>`;
+            document.getElementById('importBtn').disabled = false;
+            document.getElementById('importBtn').textContent = '开始导入';
+            loadUnits(1);
+          } else if (st.status === 'failed') {
+            clearInterval(timer);
+            el.innerHTML = `<div class="tag tag-red">导入失败：${(st.errors || []).map(e => e.error || e.filename).join('; ')}</div>`;
+            document.getElementById('importBtn').disabled = false;
+            document.getElementById('importBtn').textContent = '开始导入';
+          } else {
+            el.innerHTML = '<div class="tag">处理中...</div>';
+          }
+        } catch (e) {
+          clearInterval(timer);
+        }
+      }, 2000);
+    }
+
+    // ===== 分页 =====
+    function renderPagination(total, page, pageSize) {
+      const totalPages = Math.ceil(total / pageSize) || 1;
+      const el = document.getElementById('pagination');
+      let html = `<span>共 ${total} 条</span>`;
+      html += `<button class="btn btn-sm" ${page <= 1 ? 'disabled' : ''} onclick="loadUnits(${page - 1})">上一页</button>`;
+      html += `<span>${page} / ${totalPages}</span>`;
+      html += `<button class="btn btn-sm" ${page >= totalPages ? 'disabled' : ''} onclick="loadUnits(${page + 1})">下一页</button>`;
+      el.innerHTML = html;
+    }
+
+    function openModal(id) { document.getElementById(id).classList.add('show'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+    // ===== 初始化 =====
+    loadUnits(1);
+  </script>
+</body>
+</html>
