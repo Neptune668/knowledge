@@ -6,25 +6,12 @@ echo "=== 知识库管理平台后端容器启动 ==="
 # 等待 PostgreSQL 就绪（最多等待 60 秒）
 echo "等待 PostgreSQL 就绪..."
 RETRIES=30
-until python -c "
-import asyncio
-from sqlalchemy.ext.asyncio import create_async_engine
-from app.core.config import settings
-
-async def check():
-    engine = create_async_engine(settings.database_url)
-    try:
-        async with engine.connect() as conn:
-            await conn.execute('SELECT 1')
-        print('PostgreSQL 连接成功')
-    finally:
-        await engine.dispose()
-
-asyncio.run(check())
-" 2>/dev/null; do
+until python /app/check_db.py 2>/tmp/db_err.log; do
     RETRIES=$((RETRIES-1))
     if [ "$RETRIES" -le 0 ]; then
         echo "PostgreSQL 连接超时，退出"
+        echo "--- 连接错误详情 ---"
+        cat /tmp/db_err.log
         exit 1
     fi
     echo "PostgreSQL 尚未就绪，重试中...（剩余 $RETRIES 次）"
