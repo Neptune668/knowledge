@@ -72,20 +72,16 @@ class DashboardService:
     ) -> list[UnitRankingItem]:
         """查询最常访问知识单元 TOP 榜。
 
-        优化：用 PostgreSQL jsonb_array_elements 在数据库侧展开并聚合，
-        避免全量拉到内存统计。
+        用 PostgreSQL jsonb_array_elements 在数据库侧展开并聚合，
+        通过 LATERAL 关联保证 FROM 子句作用域正确。
         """
-        # 在 SQL 层展开 authorized_unit_ids_json 数组并计数
-        # func.jsonb_array_elements 返回 table-valued function，用 .column_valued() 引用标量列
-        elem = func.jsonb_array_elements(QaAccessLog.authorized_unit_ids_json).column_valued(
-            "value"
-        )
-        unit_id_col = elem.cast(Integer)
+        # 展开 JSONB 数组为行（LATERAL 关联主表）
+        elem = func.jsonb_array_elements(QaAccessLog.authorized_unit_ids_json)
+        unit_id_col = elem.column_valued("value").cast(Integer)
+
         result = await db.execute(
-            select(
-                unit_id_col.label("unit_id"),
-                func.count().label("cnt"),
-            )
+            select(unit_id_col.label("unit_id"), func.count().label("cnt"))
+            .select_from(QaAccessLog)
             .where(QaAccessLog.authorized_unit_ids_json.isnot(None))
             .group_by(unit_id_col)
             .order_by(func.count().desc())
