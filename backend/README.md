@@ -33,7 +33,7 @@ backend/
 ├── app/
 │   ├── main.py               # 应用入口、路由注册、异常处理
 │   ├── core/                 # 配置、安全、依赖注入、异常、数据库
-│   ├── models/               # SQLAlchemy ORM 模型（11 张表）
+│   ├── models/               # SQLAlchemy ORM 模型（12 张表）
 │   ├── schemas/              # Pydantic 请求/响应模型
 │   ├── api/v1/               # 路由层（auth/org/knowledge/ai/dashboard/settlement）
 │   ├── services/             # 业务逻辑层（含权限引擎、AI 服务、Milvus 等）
@@ -43,11 +43,6 @@ backend/
 ├── alembic/                  # 数据库迁移
 ├── scripts/init_db.py        # 建表 + 三角色种子数据
 ├── md/                       # 项目文档
-│   ├── 后端开发文档.md
-│   ├── 后端任务文档.md
-│   ├── M7-知识入库开发文档.md
-│   ├── M8-检索问答开发文档.md
-│   └── 后端接口文档.md
 ├── requirements.txt
 ├── pyproject.toml
 └── .env.example
@@ -139,11 +134,14 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 | 文档 | 说明 |
 | --- | --- |
+| [md/后端需求文档.md](md/后端需求文档.md) | 后端需求（服务模块、数据模型、接口契约） |
 | [md/后端开发文档.md](md/后端开发文档.md) | 后端设计（技术栈、模块、数据模型、接口） |
 | [md/后端任务文档.md](md/后端任务文档.md) | 任务拆解与排期 |
+| [md/后端接口文档.md](md/后端接口文档.md) | **接口文档（前后端对接）** |
+| [md/前端需求文档.md](md/前端需求文档.md) | 前端需求（页面、组件、交互） |
+| [md/前端开发手册.md](md/前端开发手册.md) | **前端开发手册** |
 | [md/M7-知识入库开发文档.md](md/M7-知识入库开发文档.md) | 知识入库（解析→切片→向量化→Milvus） |
 | [md/M8-检索问答开发文档.md](md/M8-检索问答开发文档.md) | 检索问答（召回→鉴权→兜底） |
-| [md/后端接口文档.md](md/后端接口文档.md) | **接口文档（前端开发用）** |
 
 ## 核心业务流程
 

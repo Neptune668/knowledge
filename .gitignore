@@ -51,6 +51,7 @@ venv.bak/
 .env
 .env.*
 !.env.example
+!.env.*.example
 
 # ===== IDE / 编辑器 =====
 .idea/
