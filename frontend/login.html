@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 - 知识库管理平台</title>
+  <link rel="stylesheet" href="css/common.css">
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .login-box {
+      background: #fff;
+      border-radius: 12px;
+      padding: 40px;
+      width: 380px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    }
+    .login-box h1 {
+      font-size: 22px;
+      text-align: center;
+      margin-bottom: 8px;
+      color: #333;
+    }
+    .login-box .subtitle {
+      text-align: center;
+      color: #999;
+      margin-bottom: 28px;
+      font-size: 14px;
+    }
+    .login-box .btn {
+      width: 100%;
+      margin-top: 8px;
+      padding: 10px;
+      font-size: 15px;
+    }
+    .error-msg {
+      color: #ff4d4f;
+      font-size: 13px;
+      margin-top: 8px;
+      min-height: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <h1>知识库管理平台</h1>
+    <div class="subtitle">请登录您的账号</div>
+
+    <form id="loginForm">
+      <div class="form-group">
+        <label>用户名</label>
+        <input type="text" id="username" placeholder="请输入用户名" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input type="password" id="password" placeholder="请输入密码" autocomplete="current-password">
+      </div>
+      <div class="error-msg" id="errorMsg"></div>
+      <button type="submit" class="btn btn-primary" id="loginBtn">登 录</button>
+    </form>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script>
+    // 已登录则直接跳转首页
+    if (getToken()) {
+      location.href = 'index.html';
+    }
+
+    const form = document.getElementById('loginForm');
+    const errorMsg = document.getElementById('errorMsg');
+    const loginBtn = document.getElementById('loginBtn');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!username || !password) {
+        errorMsg.textContent = '请输入用户名和密码';
+        return;
+      }
+
+      loginBtn.disabled = true;
+      loginBtn.textContent = '登录中...';
+      errorMsg.textContent = '';
+
+      try {
+        // 登录接口直接返回业务对象（不包 {code,message,data} 外壳）
+        const resp = await fetch(BASE_URL + '/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+
+        if (resp.status === 401) {
+          errorMsg.textContent = '用户名或密码错误';
+          return;
+        }
+        if (!resp.ok) {
+          errorMsg.textContent = '登录失败，请稍后重试';
+          return;
+        }
+
+        const data = await resp.json();
+
+        // 保存登录态
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('user_info', JSON.stringify(data.user_info));
+        localStorage.setItem('permissions', JSON.stringify(data.permissions || []));
+
+        // 跳转首页
+        location.href = 'index.html';
+      } catch (err) {
+        errorMsg.textContent = '网络错误，请检查后端服务是否启动';
+      } finally {
+        loginBtn.disabled = false;
+        loginBtn.textContent = '登 录';
+      }
+    });
+  </script>
+</body>
+</html>
