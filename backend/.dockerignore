@@ -18,8 +18,12 @@ __pycache__/
 # 文档目录（构建时不需要）
 md/
 
-# 部署目录本身（避免递归复制）
-deploy/
+# 部署目录：只保留 docker-entrypoint.sh（Dockerfile 需要），排除其余
+deploy/prod/
+deploy/docker-compose.yml
+deploy/.env.docker
+deploy/.env.docker.example
+deploy/README.md
 
 # 其他
 .git/
