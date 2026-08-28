@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知识库管理平台</title>
+  <link rel="stylesheet" href="css/common.css">
+  <style>
+    .welcome {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 8px;
+      padding: 40px;
+      color: #fff;
+      margin-bottom: 24px;
+    }
+    .welcome h2 {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+    .welcome p {
+      opacity: 0.9;
+    }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+    }
+    .feature-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 24px;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      transition: all 0.2s;
+      text-decoration: none;
+      color: #333;
+      display: block;
+    }
+    .feature-card:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      transform: translateY(-2px);
+    }
+    .feature-card .icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+    }
+    .feature-card .name {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .feature-card .desc {
+      font-size: 13px;
+      color: #999;
+    }
+  </style>
+</head>
+<body>
+  <!-- 顶部导航 -->
+  <div class="navbar">
+    <div class="brand">知识库管理平台</div>
+    <div class="menu" id="menu"></div>
+    <div class="user-info">
+      <span id="userName"></span>
+      <button class="btn btn-sm" onclick="logout()">退出登录</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- 欢迎区 -->
+    <div class="welcome">
+      <h2 id="welcomeTitle">欢迎使用知识库管理平台</h2>
+      <p id="welcomeSub"></p>
+    </div>
+
+    <!-- 功能入口 -->
+    <div class="feature-grid" id="featureGrid"></div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script>
+    // ===== 登录态守卫 =====
+    if (!requireLogin()) {
+      // requireLogin 内部已跳转
+    }
+
+    // ===== 功能菜单定义 =====
+    // 每个功能：{ name, desc, icon, url, perm(所需权限码，null 表示所有登录用户可见) }
+    const features = [
+      { name: 'AI 智能问答', desc: '基于知识库的智能问答', icon: '💬', url: 'chat.html', perm: 'ai:chat' },
+      { name: '知识单元管理', desc: '知识导入、编辑、权限配置', icon: '📚', url: 'knowledge.html', perm: 'knowledge:view' },
+      { name: '组织架构', desc: '用户、角色、部门管理', icon: '🏢', url: 'org.html', perm: 'user:view' },
+      { name: '数据看板', desc: '访问指标、排行榜、趋势', icon: '📊', url: 'dashboard.html', perm: 'dashboard:view' },
+      { name: '知识沉淀', desc: 'FAQ 审核、知识缺口管理', icon: '🧠', url: 'settlement.html', perm: 'faq:view' },
+    ];
+
+    // ===== 渲染用户信息 =====
+    const userInfo = getUserInfo();
+    if (userInfo) {
+      document.getElementById('userName').textContent = userInfo.display_name || userInfo.username;
+      document.getElementById('welcomeTitle').textContent = `欢迎，${userInfo.display_name || userInfo.username}`;
+      const dept = userInfo.department_name ? ` · ${userInfo.department_name}` : '';
+      const roles = (userInfo.roles || []).join('、');
+      document.getElementById('welcomeSub').textContent = `所属部门：${userInfo.department_name || '未分配'}　角色：${roles || '无'}`;
+    }
+
+    // ===== 渲染顶部菜单（仅显示有权限的功能）=====
+    const menuEl = document.getElementById('menu');
+    const featureGrid = document.getElementById('featureGrid');
+
+    features.forEach((f) => {
+      const visible = f.perm === null || hasPermission(f.perm);
+      if (!visible) return;
+
+      // 顶部菜单项
+      const link = document.createElement('a');
+      link.href = f.url;
+      link.textContent = f.name;
+      menuEl.appendChild(link);
+
+      // 功能卡片
+      const card = document.createElement('a');
+      card.className = 'feature-card';
+      card.href = f.url;
+      card.innerHTML = `
+        <div class="icon">${f.icon}</div>
+        <div class="name">${f.name}</div>
+        <div class="desc">${f.desc}</div>
+      `;
+      featureGrid.appendChild(card);
+    });
+
+    // 若无任何可见功能（理论上不会，所有用户至少能问答）
+    if (featureGrid.children.length === 0) {
+      featureGrid.innerHTML = '<div class="empty">暂无可用的功能</div>';
+    }
+
+    // ===== 高亮当前菜单 =====
+    document.querySelectorAll('.menu a').forEach((a) => {
+      if (location.href.includes(a.getAttribute('href'))) {
+        a.classList.add('active');
+      }
+    });
+  </script>
+</body>
+</html>

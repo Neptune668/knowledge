@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>组织架构 - 知识库管理平台</title>
+  <link rel="stylesheet" href="css/common.css">
+  <style>
+    .tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid #e8e8e8;
+      margin-bottom: 20px;
+    }
+    .tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      color: #555;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+    }
+    .tab.active {
+      color: #1a73e8;
+      border-bottom-color: #1a73e8;
+      font-weight: 600;
+    }
+    .tab-panel {
+      display: none;
+    }
+    .tab-panel.active {
+      display: block;
+    }
+    /* 部门树 */
+    .tree {
+      padding-left: 0;
+      list-style: none;
+    }
+    .tree ul {
+      padding-left: 20px;
+      list-style: none;
+    }
+    .tree-node {
+      padding: 6px 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 4px;
+    }
+    .tree-node:hover {
+      background: #f5f7fa;
+    }
+    .tree-node .name {
+      flex: 1;
+    }
+    /* 权限树 */
+    .perm-group {
+      margin-bottom: 12px;
+    }
+    .perm-group .group-name {
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .perm-group label {
+      display: inline-block;
+      margin-right: 16px;
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <div class="brand">知识库管理平台</div>
+    <div class="menu">
+      <a href="index.html">首页</a>
+      <a href="chat.html">AI 问答</a>
+      <a href="org.html" class="active">组织架构</a>
+    </div>
+    <div class="user-info">
+      <span id="userName"></span>
+      <button class="btn btn-sm" onclick="logout()">退出登录</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="tabs">
+      <div class="tab active" data-tab="dept" onclick="switchTab('dept')">部门管理</div>
+      <div class="tab" data-tab="user" onclick="switchTab('user')">用户管理</div>
+      <div class="tab" data-tab="role" onclick="switchTab('role')">角色管理</div>
+    </div>
+
+    <!-- 部门管理 -->
+    <div class="tab-panel active" id="panel-dept">
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between">
+          <span>部门树</span>
+          <button class="btn btn-primary btn-sm" data-perm="dept:create" onclick="openDeptModal()">新增部门</button>
+        </div>
+        <div id="deptTree"></div>
+      </div>
+    </div>
+
+    <!-- 用户管理 -->
+    <div class="tab-panel" id="panel-user">
+      <div class="card">
+        <div class="search-bar">
+          <input type="text" id="userKeyword" placeholder="搜索用户名/显示名">
+          <select id="userStatus">
+            <option value="">全部状态</option>
+            <option value="active">启用</option>
+            <option value="disabled">停用</option>
+          </select>
+          <button class="btn btn-primary" onclick="loadUsers(1)">查询</button>
+          <button class="btn" data-perm="user:create" onclick="openUserModal()">新增用户</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th>用户名</th><th>显示名</th><th>部门</th><th>角色</th><th>状态</th><th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="userTable"></tbody>
+        </table>
+        <div class="pagination" id="userPagination"></div>
+      </div>
+    </div>
+
+    <!-- 角色管理 -->
+    <div class="tab-panel" id="panel-role">
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between">
+          <span>角色列表</span>
+          <button class="btn btn-primary btn-sm" data-perm="role:create" onclick="openRoleModal()">新增角色</button>
+        </div>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>角色名</th><th>角色编码</th><th>描述</th><th>操作</th></tr>
+          </thead>
+          <tbody id="roleTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 部门弹窗 -->
+  <div class="modal-mask" id="deptModal">
+    <div class="modal">
+      <div class="modal-title" id="deptModalTitle">新增部门</div>
+      <div class="form-group"><label>部门名称</label><input type="text" id="deptName"></div>
+      <div class="form-group"><label>父部门</label><select id="deptParent"></select></div>
+      <div class="form-group"><label>排序值</label><input type="number" id="deptSort" value="0"></div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('deptModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveDept()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 用户弹窗 -->
+  <div class="modal-mask" id="userModal">
+    <div class="modal">
+      <div class="modal-title" id="userModalTitle">新增用户</div>
+      <div class="form-group"><label>用户名</label><input type="text" id="userUsername"></div>
+      <div class="form-group"><label>显示名</label><input type="text" id="userDisplayName"></div>
+      <div class="form-group"><label>部门</label><select id="userDept"></select></div>
+      <div class="form-group"><label>角色</label><select id="userRoles" multiple style="height:80px"></select></div>
+      <div class="form-group" id="userPasswordGroup"><label>密码</label><input type="password" id="userPassword"></div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('userModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveUser()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 角色弹窗 -->
+  <div class="modal-mask" id="roleModal">
+    <div class="modal">
+      <div class="modal-title" id="roleModalTitle">新增角色</div>
+      <div class="form-group"><label>角色名称</label><input type="text" id="roleName"></div>
+      <div class="form-group"><label>角色编码</label><input type="text" id="roleCode"></div>
+      <div class="form-group"><label>描述</label><input type="text" id="roleDesc"></div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('roleModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveRole()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 权限分配弹窗 -->
+  <div class="modal-mask" id="permModal">
+    <div class="modal">
+      <div class="modal-title">分配权限 - <span id="permRoleName"></span></div>
+      <div id="permTree"></div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModal('permModal')">取消</button>
+        <button class="btn btn-primary" onclick="savePerm()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script>
+    if (!requireLogin()) {}
+    const userInfo = getUserInfo();
+    if (userInfo) document.getElementById('userName').textContent = userInfo.display_name || userInfo.username;
+
+    // ===== 全局变量 =====
+    let currentUserPage = 1;
+    let editingDeptId = null;
+    let editingUserId = null;
+    let editingRoleId = null;
+    let permRoleId = null;
+    let allDepts = [];
+    let allRoles = [];
+
+    // ===== 权限码清单 =====
+    const PERM_GROUPS = [
+      { group: '用户管理', codes: ['user:view', 'user:create', 'user:update', 'user:reset_pwd', 'user:status'] },
+      { group: '角色管理', codes: ['role:create', 'role:update', 'role:assign_perm'] },
+      { group: '部门管理', codes: ['dept:create', 'dept:update', 'dept:delete'] },
+      { group: '知识单元', codes: ['knowledge:view', 'knowledge:create', 'knowledge:update', 'knowledge:delete', 'knowledge:import', 'knowledge:perm_config'] },
+      { group: 'AI 问答', codes: ['ai:chat'] },
+      { group: '看板', codes: ['dashboard:view'] },
+      { group: '知识沉淀', codes: ['faq:view', 'faq:review', 'gap:view', 'gap:resolve'] },
+    ];
+
+    // ===== Tab 切换 =====
+    function switchTab(name) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+      if (name === 'dept') loadDepts();
+      if (name === 'user') loadUsers(1);
+      if (name === 'role') loadRoles();
+    }
+
+    function openModal(id) { document.getElementById(id).classList.add('show'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+    // ===== 部门管理 =====
+    async function loadDepts() {
+      const data = await http.get('/org/departments');
+      allDepts = flattenDepts(data);
+      document.getElementById('deptTree').innerHTML = renderDeptTree(data);
+    }
+    function flattenDepts(nodes, result = []) {
+      nodes.forEach(n => { result.push(n); if (n.children) flattenDepts(n.children, result); });
+      return result;
+    }
+    function renderDeptTree(nodes) {
+      if (!nodes || nodes.length === 0) return '<div class="empty">暂无部门</div>';
+      let html = '<ul class="tree">';
+      nodes.forEach(n => {
+        html += `<li>
+          <div class="tree-node">
+            <span class="name">${escapeHtml(n.name)}</span>
+            <button class="btn btn-sm" data-perm="dept:create" onclick="openDeptModal(${n.id})">加子部门</button>
+            <button class="btn btn-sm" data-perm="dept:update" onclick="openDeptModal(null, ${n.id})">编辑</button>
+            <button class="btn btn-sm btn-danger" data-perm="dept:delete" onclick="deleteDept(${n.id})">删除</button>
+          </div>`;
+        if (n.children && n.children.length) html += renderDeptTree(n.children);
+        html += '</li>';
+      });
+      html += '</ul>';
+      return html;
+    }
+    function openDeptModal(parentId = null, deptId = null) {
+      editingDeptId = deptId;
+      document.getElementById('deptModalTitle').textContent = deptId ? '编辑部门' : '新增部门';
+      document.getElementById('deptName').value = deptId ? allDepts.find(d => d.id === deptId)?.name || '' : '';
+      document.getElementById('deptSort').value = deptId ? allDepts.find(d => d.id === deptId)?.sort_order || 0 : 0;
+      // 父部门下拉
+      const sel = document.getElementById('deptParent');
+      sel.innerHTML = '<option value="">（根部门）</option>' + allDepts.map(d =>
+        `<option value="${d.id}" ${deptId && d.id === (allDepts.find(x=>x.id===deptId)?.parent_id) ? 'selected' : ''} ${d.id === deptId ? 'disabled' : ''}>${escapeHtml(d.name)}</option>`
+      ).join('');
+      if (parentId) sel.value = String(parentId);
+      openModal('deptModal');
+    }
+    async function saveDept() {
+      const body = {
+        name: document.getElementById('deptName').value.trim(),
+        parent_id: document.getElementById('deptParent').value ? Number(document.getElementById('deptParent').value) : null,
+        sort_order: Number(document.getElementById('deptSort').value) || 0,
+      };
+      if (!body.name) { toast('请输入部门名称', 'error'); return; }
+      if (editingDeptId) {
+        await http.put(`/org/departments/${editingDeptId}`, body);
+      } else {
+        await http.post('/org/departments', body);
+      }
+      closeModal('deptModal');
+      toast('保存成功', 'success');
+      loadDepts();
+    }
+    async function deleteDept(id) {
+      if (!confirm('确认删除该部门？')) return;
+      await http.delete(`/org/departments/${id}`);
+      toast('删除成功', 'success');
+      loadDepts();
+    }
+
+    // ===== 用户管理 =====
+    async function loadUsers(page) {
+      currentUserPage = page;
+      const keyword = document.getElementById('userKeyword').value.trim();
+      const status = document.getElementById('userStatus').value;
+      const params = new URLSearchParams({ page, page_size: 20 });
+      if (keyword) params.append('keyword', keyword);
+      if (status) params.append('status', status);
+      const data = await http.get('/org/users?' + params.toString());
+      const tbody = document.getElementById('userTable');
+      tbody.innerHTML = data.items.map(u => `
+        <tr>
+          <td>${u.id}</td>
+          <td>${escapeHtml(u.username)}</td>
+          <td>${escapeHtml(u.display_name)}</td>
+          <td>${escapeHtml(u.department_name || '-')}</td>
+          <td>${(u.role_codes || []).map(r => `<span class="tag">${escapeHtml(r)}</span>`).join('')}</td>
+          <td>${u.status === 'active' ? '<span class="tag tag-green">启用</span>' : '<span class="tag tag-gray">停用</span>'}</td>
+          <td>
+            <button class="btn btn-sm" data-perm="user:update" onclick="openUserModal(${u.id})">编辑</button>
+            <button class="btn btn-sm" data-perm="user:reset_pwd" onclick="resetPwd(${u.id})">重置密码</button>
+            <button class="btn btn-sm btn-danger" data-perm="user:status" onclick="toggleUserStatus(${u.id}, '${u.status}')">${u.status === 'active' ? '停用' : '启用'}</button>
+          </td>
+        </tr>`).join('');
+      renderPagination(data.total, page, 20, loadUsers, 'userPagination');
+    }
+    function openUserModal(userId = null) {
+      editingUserId = userId;
+      document.getElementById('userModalTitle').textContent = userId ? '编辑用户' : '新增用户';
+      document.getElementById('userUsername').value = '';
+      document.getElementById('userDisplayName').value = '';
+      document.getElementById('userPassword').value = '';
+      document.getElementById('userPasswordGroup').style.display = userId ? 'none' : 'block';
+      if (userId) {
+        // 简化：从列表数据填充（需重新拉取）
+        document.getElementById('userUsername').value = '';
+        document.getElementById('userUsername').disabled = true;
+      } else {
+        document.getElementById('userUsername').disabled = false;
+      }
+      // 部门下拉
+      document.getElementById('userDept').innerHTML = '<option value="">（无部门）</option>' + allDepts.map(d => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join('');
+      // 角色下拉
+      document.getElementById('userRoles').innerHTML = allRoles.map(r => `<option value="${r.id}">${escapeHtml(r.role_name)}</option>`).join('');
+      openModal('userModal');
+    }
+    async function saveUser() {
+      const roleIds = Array.from(document.getElementById('userRoles').selectedOptions).map(o => Number(o.value));
+      if (editingUserId) {
+        await http.put(`/org/users/${editingUserId}`, {
+          display_name: document.getElementById('userDisplayName').value.trim(),
+          department_id: document.getElementById('userDept').value ? Number(document.getElementById('userDept').value) : null,
+          role_ids: roleIds,
+        });
+      } else {
+        await http.post('/org/users', {
+          username: document.getElementById('userUsername').value.trim(),
+          display_name: document.getElementById('userDisplayName').value.trim(),
+          department_id: document.getElementById('userDept').value ? Number(document.getElementById('userDept').value) : null,
+          role_ids: roleIds,
+          password: document.getElementById('userPassword').value,
+        });
+      }
+      closeModal('userModal');
+      toast('保存成功', 'success');
+      loadUsers(currentUserPage);
+    }
+    async function resetPwd(id) {
+      const pwd = prompt('请输入新密码：');
+      if (!pwd) return;
+      await http.post(`/org/users/${id}/reset-password`, { password: pwd });
+      toast('重置成功', 'success');
+    }
+    async function toggleUserStatus(id, status) {
+      const target = status === 'active' ? 'disabled' : 'active';
+      await http.put(`/org/users/${id}/status`, { status: target });
+      toast('操作成功', 'success');
+      loadUsers(currentUserPage);
+    }
+
+    // ===== 角色管理 =====
+    async function loadRoles() {
+      allRoles = await http.get('/org/roles');
+      document.getElementById('roleTable').innerHTML = allRoles.map(r => `
+        <tr>
+          <td>${r.id}</td>
+          <td>${escapeHtml(r.role_name)}</td>
+          <td>${escapeHtml(r.role_code)}</td>
+          <td>${escapeHtml(r.description || '-')}</td>
+          <td>
+            <button class="btn btn-sm" data-perm="role:update" onclick="openRoleModal(${r.id})">编辑</button>
+            <button class="btn btn-sm btn-primary" data-perm="role:assign_perm" onclick="openPermModal(${r.id})">分配权限</button>
+          </td>
+        </tr>`).join('');
+    }
+    function openRoleModal(roleId = null) {
+      editingRoleId = roleId;
+      document.getElementById('roleModalTitle').textContent = roleId ? '编辑角色' : '新增角色';
+      const r = roleId ? allRoles.find(x => x.id === roleId) : null;
+      document.getElementById('roleName').value = r?.role_name || '';
+      document.getElementById('roleCode').value = r?.role_code || '';
+      document.getElementById('roleDesc').value = r?.description || '';
+      document.getElementById('roleCode').disabled = !!roleId; // 编码不可改
+      openModal('roleModal');
+    }
+    async function saveRole() {
+      if (editingRoleId) {
+        await http.put(`/org/roles/${editingRoleId}`, {
+          role_name: document.getElementById('roleName').value.trim(),
+          description: document.getElementById('roleDesc').value.trim(),
+        });
+      } else {
+        await http.post('/org/roles', {
+          role_name: document.getElementById('roleName').value.trim(),
+          role_code: document.getElementById('roleCode').value.trim(),
+          description: document.getElementById('roleDesc').value.trim(),
+        });
+      }
+      closeModal('roleModal');
+      toast('保存成功', 'success');
+      loadRoles();
+    }
+
+    // ===== 权限分配 =====
+    async function openPermModal(roleId) {
+      permRoleId = roleId;
+      const r = allRoles.find(x => x.id === roleId);
+      document.getElementById('permRoleName').textContent = r?.role_name || '';
+      // 获取该角色已有权限
+      let existing = [];
+      try {
+        // 角色列表接口不含权限，简化：不做回显，直接全量勾选（覆盖式提交）
+        // 如需回显，可后续扩展接口
+      } catch (e) {}
+      // 渲染权限树（复选框）
+      let html = '';
+      PERM_GROUPS.forEach(g => {
+        html += `<div class="perm-group"><div class="group-name">${g.group}</div>`;
+        g.codes.forEach(c => {
+          html += `<label><input type="checkbox" class="perm-check" value="${c}"> ${c}</label>`;
+        });
+        html += '</div>';
+      });
+      document.getElementById('permTree').innerHTML = html;
+      openModal('permModal');
+    }
+    async function savePerm() {
+      const checked = Array.from(document.querySelectorAll('.perm-check:checked')).map(c => ({
+        permission_code: c.value,
+        permission_type: 'operation',
+      }));
+      await http.post(`/org/roles/${permRoleId}/permissions`, { permissions: checked });
+      closeModal('permModal');
+      toast('权限已保存', 'success');
+    }
+
+    // ===== 分页组件 =====
+    function renderPagination(total, page, pageSize, loadFn, containerId) {
+      const totalPages = Math.ceil(total / pageSize) || 1;
+      const el = document.getElementById(containerId);
+      let html = `<span>共 ${total} 条</span>`;
+      html += `<button class="btn btn-sm" ${page <= 1 ? 'disabled' : ''} onclick="${loadFn.name}(${page - 1})">上一页</button>`;
+      html += `<span>${page} / ${totalPages}</span>`;
+      html += `<button class="btn btn-sm" ${page >= totalPages ? 'disabled' : ''} onclick="${loadFn.name}(${page + 1})">下一页</button>`;
+      el.innerHTML = html;
+    }
+
+    // ===== 初始化 =====
+    loadDepts();
+    loadRoles();
+    loadUsers(1);
+    applyPermission();
+  </script>
+</body>
+</html>
