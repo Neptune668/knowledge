@@ -1,0 +1,46 @@
+# 本机开发测试用 Compose
+# 仅启动后端依赖的基础服务容器（Redis + PostgreSQL）
+# 后端服务（uvicorn）与 Milvus 均在本机运行，不走容器
+#
+# 用法：
+#   仅启动 Redis：        docker compose -f docker-compose.dev.yml up -d redis
+#   启动 Redis + PG：     docker compose -f docker-compose.dev.yml up -d
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: kami-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: kami-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: "1234"
+      POSTGRES_DB: kami
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d kami"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  redis_data:
+  postgres_data:
