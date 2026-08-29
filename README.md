@@ -13,7 +13,6 @@ kami/
 │   ├── md/                     # 后端相关文档
 │   │   ├── 后端需求文档.md
 │   │   ├── 后端开发文档.md
-│   │   └── 后端任务文档.md
 │   ├── requirements.txt
 │   ├── pyproject.toml
 │   ├── .env.example
